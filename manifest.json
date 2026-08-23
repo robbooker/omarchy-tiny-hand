@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "robbooker.tiny-hand",
   "name": "Tiny Hand",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "Rob Booker",
   "license": "MIT",
   "description": "A theme-aware pack of expressive animated pointers for Omarchy and Hyprland.",

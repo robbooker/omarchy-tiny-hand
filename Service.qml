@@ -39,14 +39,26 @@ Item {
   // loader-backed panels use openPanelIds. Tiny Hand's overlay sits below
   // some of those surfaces, so yield to Hyprland's native cursor for the
   // entire popup lifetime instead of leaving users with no visible pointer.
-  function hasOpenPanel(panelIds) {
+  function hasOpenPanel(panelIds, panelLoaders) {
     var ids = panelIds || {}
-    for (var id in ids) if (ids[id] === true) return true
+    var loaders = panelLoaders || {}
+    for (var id in ids) {
+      if (ids[id] !== true) continue
+
+      // openPanelIds is the loader's lifetime signal, not necessarily the
+      // panel's visible state. Some panels close themselves without asking
+      // the shell to unload them, leaving the id behind. Prefer the panel's
+      // opened property once its Loader has resolved so a stale loader cannot
+      // strand Tiny Hand in native-cursor mode.
+      var loader = loaders[id]
+      if (!loader || !loader.item) return true
+      if (loader.item.opened === undefined || loader.item.opened === true) return true
+    }
     return false
   }
 
   readonly property bool barPopoutOpen: !!(shell && shell.bar && shell.bar.activePopout !== null)
-  readonly property bool loaderPanelOpen: !!(shell && hasOpenPanel(shell.openPanelIds))
+  readonly property bool loaderPanelOpen: !!(shell && hasOpenPanel(shell.openPanelIds, shell.panelLoaders))
   readonly property bool nativeCursorFallback: active && (barPopoutOpen || loaderPanelOpen)
   readonly property bool pointerEngaged: active && !nativeCursorFallback
 

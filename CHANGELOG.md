@@ -2,6 +2,11 @@
 
 All notable Tiny Hand changes are documented here.
 
+## 0.5.1 — 2026-08-23
+
+- Prevent a loader-backed Omarchy panel that closed itself from leaving Tiny
+  Hand permanently suspended behind a stale shell loader flag.
+
 ## 0.5.0 — 2026-08-22
 
 - Make standard Omarchy installation self-contained: click observation and
