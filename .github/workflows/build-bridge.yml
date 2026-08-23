@@ -1,0 +1,28 @@
+name: Build release bridge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-bridge:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build with the pinned toolchain
+        run: |
+          mkdir -p bridge-output
+          ./scripts/build-bridge.sh bridge-output
+          sha256sum bridge-output/tiny-hand-bridge
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tiny-hand-bridge-linux-amd64
+          path: bridge-output/tiny-hand-bridge
+          if-no-files-found: error
+          retention-days: 7

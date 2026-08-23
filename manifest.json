@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "robbooker.tiny-hand",
+  "name": "Tiny Hand",
+  "version": "0.5.0",
+  "author": "Rob Booker",
+  "license": "MIT",
+  "description": "A theme-aware pack of expressive animated pointers for Omarchy and Hyprland.",
+  "keywords": [
+    "cursor",
+    "pointer",
+    "presentation",
+    "accessibility",
+    "quickshell"
+  ],
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tiny Hand",
+    "description": "Pointer picker and controls",
+    "category": "Desktop",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "style": "tiny-hand",
+      "size": "Giant",
+      "themeAware": true,
+      "clickEffects": true,
+      "jazzHands": true,
+      "enabled": true
+    }
+  }
+}
