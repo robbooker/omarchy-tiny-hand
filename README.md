@@ -25,8 +25,8 @@ Pokey.
 - Persistent settings in `~/.config/omarchy/shell.json`
 - 60 Hz multi-monitor tracking through Hyprland's local IPC socket
 - Click-through Quickshell overlays that never block the desktop
-- Automatic native-cursor restoration during settings, shutdown, disable,
-  removal, and normal helper failure
+- Automatic native-cursor restoration during any Omarchy menu or panel,
+  shutdown, disable, removal, and normal helper failure
 - Runtime-owned click and shortcut bindings: no permanent Hyprland config edit
 
 ## Requirements
@@ -63,9 +63,9 @@ Inside Settings:
 - Number keys 1–6 select a pointer style.
 - `S` saves, `R` resets the draft, and Escape closes the panel.
 
-Opening Settings temporarily suspends Tiny Hand so the native cursor remains
-visible above the popup. Closing the panel restores the exact pointer state
-that was active before it opened.
+Opening Settings—or any other Omarchy bar menu—temporarily suspends Tiny Hand
+so the native cursor remains visible above the popup. Closing the panel resumes
+the chosen pointer without changing its saved enabled state.
 
 Diagnostics are available through the shell:
 
@@ -149,8 +149,9 @@ helper generation from removing a replacement generation's socket, binding,
 or cursor state.
 
 `BarWidget.qml` hosts the bar icon and settings panel. `Panel.qml` manages
-draft preferences, persistence, keyboard navigation, and cursor suspension
-while the panel is open. `PointerArt.qml` contains the original vector art.
+draft preferences, persistence, and keyboard navigation. `Service.qml` watches
+Omarchy's shared popout state and yields to the native cursor while an
+interactive panel is open. `PointerArt.qml` contains the original vector art.
 
 ## Known limitations
 

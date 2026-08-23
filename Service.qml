@@ -35,6 +35,21 @@ Item {
   property bool clickEffects: true
   property bool jazzHands: true
 
+  // Bar widgets coordinate their interactive popouts through activePopout;
+  // loader-backed panels use openPanelIds. Tiny Hand's overlay sits below
+  // some of those surfaces, so yield to Hyprland's native cursor for the
+  // entire popup lifetime instead of leaving users with no visible pointer.
+  function hasOpenPanel(panelIds) {
+    var ids = panelIds || {}
+    for (var id in ids) if (ids[id] === true) return true
+    return false
+  }
+
+  readonly property bool barPopoutOpen: !!(shell && shell.bar && shell.bar.activePopout !== null)
+  readonly property bool loaderPanelOpen: !!(shell && hasOpenPanel(shell.openPanelIds))
+  readonly property bool nativeCursorFallback: active && (barPopoutOpen || loaderPanelOpen)
+  readonly property bool pointerEngaged: active && !nativeCursorFallback
+
   readonly property var spec: styleSpec(pointerStyle)
   readonly property real sizeFactor: sizeScale(pointerSize)
   readonly property real pointerWidth: spec.width * sizeFactor
@@ -128,7 +143,7 @@ Item {
   Process {
     id: bridge
     command: root.bridgePath === "" ? [] : [root.bridgePath, "stream"]
-    running: root.active && root.bridgePath !== ""
+    running: root.pointerEngaged && root.bridgePath !== ""
     stdout: SplitParser { splitMarker: "\n"; onRead: function(line) { root.handleBridgeLine(line) } }
     stderr: SplitParser {
       splitMarker: "\n"
@@ -140,7 +155,7 @@ Item {
     onStarted: { root.bridgeError = ""; bridgeRestart.stop() }
     onExited: function(exitCode) {
       root.positionValid = false
-      if (root.active) { root.bridgeError = "bridge exited with status " + exitCode; bridgeRestart.restart() }
+      if (root.pointerEngaged) { root.bridgeError = "bridge exited with status " + exitCode; bridgeRestart.restart() }
     }
   }
 
@@ -167,7 +182,7 @@ Item {
   Timer {
     id: bridgeRestart
     interval: 750
-    onTriggered: if (root.active && root.bridgePath !== "" && !bridge.running) bridge.running = true
+    onTriggered: if (root.pointerEngaged && root.bridgePath !== "" && !bridge.running) bridge.running = true
   }
 
   Timer {
@@ -191,6 +206,8 @@ Item {
     function status(): string {
       return JSON.stringify({
         active: root.active, bridgeRunning: bridge.running, hotkeyRunning: hotkeyBridge.running,
+        pointerEngaged: root.pointerEngaged, nativeCursorFallback: root.nativeCursorFallback,
+        barPopoutOpen: root.barPopoutOpen, loaderPanelOpen: root.loaderPanelOpen,
         positionValid: root.positionValid,
         x: root.cursorX, y: root.cursorY, clickStreak: root.clickStreak, jazzCount: root.jazzCount,
         style: root.pointerStyle, size: root.pointerSize, themeAware: root.themeAware,
@@ -208,7 +225,7 @@ Item {
       id: panel
       required property var modelData
       screen: modelData
-      visible: root.active
+      visible: root.pointerEngaged
       anchors { top: true; bottom: true; left: true; right: true }
       color: "transparent"
       exclusionMode: ExclusionMode.Ignore

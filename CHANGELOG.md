@@ -16,6 +16,8 @@ All notable Tiny Hand changes are documented here.
 - Add a top-right settings panel with complete mouse and keyboard control.
 - Restore the native cursor while settings are open and restore the prior
   pointer state when settings close.
+- Yield to the native cursor while any Omarchy bar popout or interactive panel
+  is open, then resume the chosen pointer automatically when it closes.
 
 ## 0.1.0 — 2026-08-22
 
