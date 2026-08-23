@@ -25,8 +25,8 @@ Pokey.
 - Persistent settings in `~/.config/omarchy/shell.json`
 - 60 Hz multi-monitor tracking through Hyprland's local IPC socket
 - Click-through Quickshell overlays that never block the desktop
-- Automatic native-cursor restoration during any Omarchy menu or panel,
-  shutdown, disable, removal, and normal helper failure
+- Automatic native-cursor restoration during any Omarchy menu, panel, or
+  Omasnap editor session, plus shutdown, disable, removal, and helper failure
 - Runtime-owned click and shortcut bindings: no permanent Hyprland config edit
 
 ## Requirements
@@ -66,6 +66,10 @@ Inside Settings:
 Opening Settings—or any other Omarchy bar menu—temporarily suspends Tiny Hand
 so the native cursor remains visible above the popup. Closing the panel resumes
 the chosen pointer without changing its saved enabled state.
+
+Opening Omasnap does the same while its interactive capture editor is on top.
+Closing the editor restores the selected Tiny Hand style. Passive Omasnap pins
+do not suspend Tiny Hand.
 
 Diagnostics are available through the shell:
 

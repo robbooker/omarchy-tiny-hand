@@ -28,6 +28,7 @@ Item {
   property int jazzCount: 0
   property string bridgeError: ""
   property string hotkeyError: ""
+  property bool omasnapOpen: false
 
   property string pointerStyle: "tiny-hand"
   property string pointerSize: "Giant"
@@ -36,9 +37,10 @@ Item {
   property bool jazzHands: true
 
   // Bar widgets coordinate their interactive popouts through activePopout;
-  // loader-backed panels use openPanelIds. Tiny Hand's overlay sits below
-  // some of those surfaces, so yield to Hyprland's native cursor for the
-  // entire popup lifetime instead of leaving users with no visible pointer.
+  // loader-backed panels use openPanelIds. External overlay applications such
+  // as Omasnap are reported by the always-running hotkey helper. Tiny Hand's
+  // layer sits below these surfaces, so yield to Hyprland's native cursor for
+  // their entire interactive lifetime instead of leaving no visible pointer.
   function hasOpenPanel(panelIds, panelLoaders) {
     var ids = panelIds || {}
     var loaders = panelLoaders || {}
@@ -59,7 +61,7 @@ Item {
 
   readonly property bool barPopoutOpen: !!(shell && shell.bar && shell.bar.activePopout !== null)
   readonly property bool loaderPanelOpen: !!(shell && hasOpenPanel(shell.openPanelIds, shell.panelLoaders))
-  readonly property bool nativeCursorFallback: active && (barPopoutOpen || loaderPanelOpen)
+  readonly property bool nativeCursorFallback: active && (barPopoutOpen || loaderPanelOpen || omasnapOpen)
   readonly property bool pointerEngaged: active && !nativeCursorFallback
 
   readonly property var spec: styleSpec(pointerStyle)
@@ -136,6 +138,11 @@ Item {
     if (fields[0] === "C") triggerPoke()
   }
 
+  function handleHotkeyLine(rawLine) {
+    var fields = String(rawLine || "").trim().split(/\s+/)
+    if (fields[0] === "O" && fields.length >= 2) omasnapOpen = fields[1] === "1"
+  }
+
   function triggerPoke() {
     var now = Date.now()
     clickStreak = now - lastClickAt < 360 ? Math.min(4, clickStreak + 1) : 1
@@ -175,6 +182,7 @@ Item {
     id: hotkeyBridge
     command: root.bridgePath === "" ? [] : [root.bridgePath, "hotkey"]
     running: root.bridgePath !== ""
+    stdout: SplitParser { splitMarker: "\n"; onRead: function(line) { root.handleHotkeyLine(line) } }
     stderr: SplitParser {
       splitMarker: "\n"
       onRead: function(line) {
@@ -220,6 +228,7 @@ Item {
         active: root.active, bridgeRunning: bridge.running, hotkeyRunning: hotkeyBridge.running,
         pointerEngaged: root.pointerEngaged, nativeCursorFallback: root.nativeCursorFallback,
         barPopoutOpen: root.barPopoutOpen, loaderPanelOpen: root.loaderPanelOpen,
+        omasnapOpen: root.omasnapOpen,
         positionValid: root.positionValid,
         x: root.cursorX, y: root.cursorY, clickStreak: root.clickStreak, jazzCount: root.jazzCount,
         style: root.pointerStyle, size: root.pointerSize, themeAware: root.themeAware,

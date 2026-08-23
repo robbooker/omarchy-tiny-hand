@@ -2,6 +2,12 @@
 
 All notable Tiny Hand changes are documented here.
 
+## 0.5.2 — 2026-08-23
+
+- Restore Hyprland's native cursor while Omasnap's interactive capture editor
+  is open, then resume the selected Tiny Hand pointer when it closes.
+- Keep passive `omasnap-pin` screenshot surfaces from triggering the fallback.
+
 ## 0.5.1 — 2026-08-23
 
 - Prevent a loader-backed Omarchy panel that closed itself from leaving Tiny

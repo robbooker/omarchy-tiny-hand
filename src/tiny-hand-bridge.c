@@ -20,10 +20,12 @@
 
 #define FRAME_NS 16666667L
 #define RESPONSE_SIZE 1024
+#define LAYERS_RESPONSE_SIZE 65536
 #define REQUEST_SIZE (PATH_MAX * 5)
 
 static volatile sig_atomic_t keep_running = 1;
 static char hypr_socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
+static char hypr_event_socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
 static char bridge_socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
 static char bridge_owner_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
 static char hotkey_owner_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
@@ -41,6 +43,9 @@ static bool build_paths(void) {
 
   int hypr_length = snprintf(hypr_socket_path, sizeof(hypr_socket_path),
                              "%s/hypr/%s/.socket.sock", runtime_dir, instance);
+  int hypr_event_length =
+      snprintf(hypr_event_socket_path, sizeof(hypr_event_socket_path),
+               "%s/hypr/%s/.socket2.sock", runtime_dir, instance);
   int bridge_length = snprintf(bridge_socket_path, sizeof(bridge_socket_path),
                                "%s/omarchy-tiny-hand-%lu.sock", runtime_dir,
                                (unsigned long)getuid());
@@ -51,6 +56,8 @@ static bool build_paths(void) {
                                      "%s/omarchy-tiny-hand-hotkey-%lu.owner",
                                      runtime_dir, (unsigned long)getuid());
   return hypr_length > 0 && (size_t)hypr_length < sizeof(hypr_socket_path)
+      && hypr_event_length > 0
+      && (size_t)hypr_event_length < sizeof(hypr_event_socket_path)
       && bridge_length > 0 && (size_t)bridge_length < sizeof(bridge_socket_path)
       && owner_length > 0 && (size_t)owner_length < sizeof(bridge_owner_path)
       && hotkey_owner_length > 0
@@ -133,6 +140,62 @@ static bool query_cursor(double *x, double *y) {
   char response[RESPONSE_SIZE];
   return hypr_request("j/cursorpos", response, sizeof(response)) > 0
       && parse_cursor_json(response, x, y);
+}
+
+static bool json_has_namespace(const char *json, const char *target) {
+  if (!json || !target) return false;
+  const size_t target_length = strlen(target);
+  const char *cursor = json;
+
+  while ((cursor = strstr(cursor, "\"namespace\"")) != NULL) {
+    cursor += strlen("\"namespace\"");
+    while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r'
+           || *cursor == '\n') cursor++;
+    if (*cursor++ != ':') continue;
+    while (*cursor == ' ' || *cursor == '\t' || *cursor == '\r'
+           || *cursor == '\n') cursor++;
+    if (*cursor++ != '\"') continue;
+    if (strncmp(cursor, target, target_length) == 0
+        && cursor[target_length] == '\"') return true;
+  }
+  return false;
+}
+
+static bool query_namespace_open(const char *target, bool *is_open) {
+  if (!target || !is_open) return false;
+  char *response = malloc(LAYERS_RESPONSE_SIZE);
+  if (!response) return false;
+  ssize_t length = hypr_request("j/layers", response, LAYERS_RESPONSE_SIZE);
+  if (length < 0) {
+    free(response);
+    return false;
+  }
+  *is_open = json_has_namespace(response, target);
+  free(response);
+  return true;
+}
+
+static int connect_hypr_event_socket(void) {
+  int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  if (fd < 0) return -1;
+
+  struct sockaddr_un address = { .sun_family = AF_UNIX };
+  (void)snprintf(address.sun_path, sizeof(address.sun_path), "%s",
+                 hypr_event_socket_path);
+  if (connect(fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+
+static bool event_is(const char *line, size_t length, const char *expected) {
+  if (length > 0 && line[length - 1] == '\r') length--;
+  return strlen(expected) == length && memcmp(line, expected, length) == 0;
+}
+
+static bool publish_overlay_state(bool open) {
+  return printf("O %d\n", open ? 1 : 0) >= 0 && fflush(stdout) != EOF;
 }
 
 static void set_cursor_hidden(bool hidden) {
@@ -500,10 +563,64 @@ static int hotkey_events(void) {
     return 1;
   }
 
-  while (keep_running) {
-    int result = poll(NULL, 0, -1);
-    if (result < 0 && errno != EINTR) break;
+  int event_fd = connect_hypr_event_socket();
+  bool omasnap_open = false;
+  if (event_fd < 0 || !query_namespace_open("omasnap", &omasnap_open)
+      || !publish_overlay_state(omasnap_open)) {
+    fputs("tiny-hand-bridge: Hyprland overlay watcher could not start\n", stderr);
+    keep_running = 0;
   }
+
+  char event_buffer[4096];
+  size_t event_used = 0;
+  while (keep_running) {
+    struct pollfd descriptor = { .fd = event_fd, .events = POLLIN };
+    int result = poll(&descriptor, 1, -1);
+    if (result < 0) {
+      if (errno == EINTR) continue;
+      break;
+    }
+    if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) break;
+    if ((descriptor.revents & POLLIN) == 0) continue;
+
+    ssize_t count = read(event_fd, event_buffer + event_used,
+                         sizeof(event_buffer) - event_used);
+    if (count <= 0) {
+      if (count < 0 && errno == EINTR) continue;
+      break;
+    }
+    event_used += (size_t)count;
+
+    size_t line_start = 0;
+    for (size_t index = 0; index < event_used; index++) {
+      if (event_buffer[index] != '\n') continue;
+      const char *line = event_buffer + line_start;
+      size_t line_length = index - line_start;
+      bool changed = false;
+      if (event_is(line, line_length, "openlayer>>omasnap")
+          && !omasnap_open) {
+        omasnap_open = true;
+        changed = true;
+      } else if (event_is(line, line_length, "closelayer>>omasnap")
+                 && omasnap_open) {
+        omasnap_open = false;
+        changed = true;
+      }
+      if (changed && !publish_overlay_state(omasnap_open)) {
+        keep_running = 0;
+        break;
+      }
+      line_start = index + 1;
+    }
+    if (line_start > 0) {
+      memmove(event_buffer, event_buffer + line_start, event_used - line_start);
+      event_used -= line_start;
+    } else if (event_used == sizeof(event_buffer)) {
+      event_used = 0;
+    }
+  }
+
+  if (event_fd >= 0) close(event_fd);
 
   if (owns_token(hotkey_owner_path)) {
     if (!configure_hotkey_binding(false)) {
@@ -564,8 +681,14 @@ static int parse_for_test(const char *json) {
   return 0;
 }
 
+static int parse_layer_for_test(const char *json) {
+  puts(json_has_namespace(json, "omasnap") ? "1" : "0");
+  return 0;
+}
+
 static void print_usage(FILE *stream) {
-  fputs("Usage: tiny-hand-bridge <stream|hotkey|cleanup|click|parse> [json]\n", stream);
+  fputs("Usage: tiny-hand-bridge <stream|hotkey|cleanup|click|parse|parse-layer> [json]\n",
+        stream);
 }
 
 int main(int argc, char **argv) {
@@ -574,6 +697,8 @@ int main(int argc, char **argv) {
   if (argc == 2 && strcmp(argv[1], "cleanup") == 0) return cleanup_stale_runtime();
   if (argc == 2 && strcmp(argv[1], "click") == 0) return send_click();
   if (argc == 3 && strcmp(argv[1], "parse") == 0) return parse_for_test(argv[2]);
+  if (argc == 3 && strcmp(argv[1], "parse-layer") == 0)
+    return parse_layer_for_test(argv[2]);
   print_usage(stderr);
   return 2;
 }

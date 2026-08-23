@@ -4,7 +4,7 @@ set -euo pipefail
 root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 jq -e '
-  .version == "0.5.1"
+  .version == "0.5.2"
   and .license == "MIT"
   and (.kinds | index("service") != null)
   and (.kinds | index("bar-widget") != null)
@@ -27,6 +27,9 @@ rg -q 'readonly property bool barPopoutOpen:' "$root_dir/Service.qml"
 rg -q 'shell.bar.activePopout !== null' "$root_dir/Service.qml"
 rg -q 'readonly property bool loaderPanelOpen:' "$root_dir/Service.qml"
 rg -q 'loader.item.opened === undefined || loader.item.opened === true' "$root_dir/Service.qml"
+rg -q 'readonly property bool nativeCursorFallback:.*omasnapOpen' "$root_dir/Service.qml"
+rg -q 'openlayer>>omasnap' "$root_dir/src/tiny-hand-bridge.c"
+rg -q 'closelayer>>omasnap' "$root_dir/src/tiny-hand-bridge.c"
 rg -q 'running: root.pointerEngaged' "$root_dir/Service.qml"
 rg -q 'visible: root.pointerEngaged' "$root_dir/Service.qml"
 rg -q 'onTabRequested' "$root_dir/Panel.qml"
